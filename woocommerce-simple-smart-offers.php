@@ -73,10 +73,8 @@ function custom_smart_offers() {
 add_action( 'init', 'custom_smart_offers', 0 );
 
 // get upsell meta
-function upsell_product_get_meta( $value ) {
-    global $post;
-
-    $field = get_post_meta( $post->ID, $value, true );
+function upsell_product_get_meta( $ID, $value ) {
+    $field = get_post_meta( $ID, $value, true );
     if ( ! empty( $field ) ) {
         return is_array( $field ) ? stripslashes_deep( $field ) : stripslashes( wp_kses_decode_entities( $field ) );
     } else {
@@ -99,20 +97,21 @@ add_action( 'add_meta_boxes', 'upsell_product_add_meta_box' );
 
 // add upsell meta box content
 function upsell_product_html( $post ) {
-    wp_nonce_field( '_upsell_product_nonce', 'upsell_product_nonce' ); ?>
+    wp_nonce_field( '_upsell_product_nonce', 'upsell_product_nonce' );
+    $product_names = get_product_names(); ?>
 
     <p>Choose the product and discount amount you’d like to offer.</p>
 
     <p>
-        <label for="upsell_product_choose_the_product"><?php _e( 'Choose the product', 'upsell_product' ); ?></label><br>
+        <label for="upsell_product_choose_the_product"><?php _e( 'Product', 'upsell_product' ); ?></label>
         <select name="upsell_product_choose_the_product" id="upsell_product_choose_the_product">
-            <option <?php echo (upsell_product_get_meta( 'upsell_product_choose_the_product' ) === 'product 1' ) ? 'selected' : '' ?>>product 1</option>
-            <option <?php echo (upsell_product_get_meta( 'upsell_product_choose_the_product' ) === 'product 2' ) ? 'selected' : '' ?>>product 2</option>
-            <option <?php echo (upsell_product_get_meta( 'upsell_product_choose_the_product' ) === 'product 3' ) ? 'selected' : '' ?>>product 3</option>
+        <?php foreach ( $product_names as $this_product_ID => $this_product_name ) { ?>
+            <option value="<?php echo $this_product_ID; ?>"<?php echo (upsell_product_get_meta( $post->ID, 'upsell_product_choose_the_product' ) == $this_product_ID ) ? 'selected' : '' ?>><?php echo $this_product_name; ?></option>
+        <?php } ?>
         </select>
     </p>	<p>
-        <label for="upsell_product_discount_amount"><?php _e( 'Discount amount', 'upsell_product' ); ?></label><br>
-        <input type="text" name="upsell_product_discount_amount" id="upsell_product_discount_amount" value="<?php echo upsell_product_get_meta( 'upsell_product_discount_amount' ); ?>">
+        <label for="upsell_product_discount_amount"><?php _e( 'Discount percentage amount', 'upsell_product' ); ?></label>
+        <input type="number" min="1" max="100" name="upsell_product_discount_amount" id="upsell_product_discount_amount" value="<?php echo upsell_product_get_meta( $post->ID, 'upsell_product_discount_amount' ); ?>"> %
     </p><?php
 }
 
@@ -133,3 +132,35 @@ add_action( 'save_post', 'upsell_product_save' );
     Usage: upsell_product_get_meta( 'upsell_product_choose_the_product' )
     Usage: upsell_product_get_meta( 'upsell_product_discount_amount' )
 */
+
+// get all available WooCommerce products
+function get_product_names() {
+    $product_names = array();
+    // WP_Query arguments
+    $args = array (
+        'post_type'              => array( 'product' ),
+        'post_status'            => array( 'publish' ),
+        'cache_results'          => true,
+        'update_post_meta_cache' => true,
+        'update_post_term_cache' => true,
+    );
+
+    // The Query
+    $products_query = new WP_Query( $args );
+
+    // The Loop
+    if ( $products_query->have_posts() ) {
+        while ( $products_query->have_posts() ) {
+            $products_query->the_post();
+            $product_names[get_the_ID()] = get_the_title();
+        }
+    } else {
+        // no posts found
+    }
+
+    // Restore original Post Data
+    wp_reset_postdata();
+
+    // return the data
+    return $product_names;
+}
